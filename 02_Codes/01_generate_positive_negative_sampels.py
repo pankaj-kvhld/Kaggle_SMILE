@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import os
 import numpy as np
+import random
 
 DATA_DIR = Path(__file__).parent.parent / "01_Data"
 FACE_REC_MODEL = DATA_DIR / "dlib_models" / "dlib_face_recognition_resnet_model_v1.dat"
@@ -26,17 +27,59 @@ def img_2_128vec(img):
         face_descriptor = facerec.compute_face_descriptor(img, shape)
         return face_descriptor
     else:
-        print("More than one faces in the image")
+        #print("None or more than one faces in the image")
         return -1
+
 
 # Construct negative examples
 # All the combination of non-kinship images from all family folders will be use.
 # If we get roughly as many positive samples, I will stick with this approach.
 all_negative_exs = np.empty((0, 2 * 128))
+ctr = 0  # Generate 150k no related image pairs
+while ctr <= 150e3:
+    family_1 = random.choice(df_kinship.p1.tolist())
+    family_2 = random.choice(df_kinship.p2.tolist())
 
-for index, row in df_kinship.iterrows():
-    
+    if family_1.split("/")[0] != family_2.split("/")[0]:
+        dir_p1 = DATA_DIR / "train" / family_1
+        dir_p2 = DATA_DIR / "train" / family_2
 
+        # Skip is the folders do not exit
+        if not os.path.exists(dir_p1) or not os.path.exists(dir_p2):
+            #print(f"Data from {dir_p1} or {dir_p2} does not exist")
+            continue
+
+        for f1 in os.listdir(dir_p1):
+            img_1 = dlib.load_rgb_image(str(dir_p1 / f1))
+            f1_128_vec = img_2_128vec(img_1)
+
+            if f1_128_vec == -1:
+                #print(f"{dir_p1/f1} failed to process")
+                continue
+
+            for f2 in os.listdir(dir_p2):
+                img_2 = dlib.load_rgb_image(str(dir_p2 / f2))
+                f2_128_vec = img_2_128vec(img_2)
+
+                if f2_128_vec == -1:
+                    #print(f"{dir_p2/f2} failes to process")
+                    continue
+
+                # Flatten and join 128 vec of both images
+                both_imgs = np.append(f1_128_vec, f2_128_vec)
+                # Append to all_positive_exs
+                all_negative_exs = np.append(
+                    all_negative_exs, both_imgs.reshape((-1, 2 * 128)), axis=0
+                )
+
+                ctr += 1
+                if ctr % 1000 == 0:
+                    print(f"{ctr} image pairs processed!")
+
+
+np.save(
+    DATA_DIR.parent / "03_Processed" / "all_negative_examples.npy", all_negative_exs
+)
 
 # Construct all positive examples. 128 vecs of two related person are appened to make
 # 1 vector of length 256. This is done exhaustively. So if person 1 is realated to person2
@@ -81,5 +124,3 @@ for index, row in df_kinship.iterrows():
 np.save(
     DATA_DIR.parent / "03_Processed" / "all_positive_examples.npy", all_positive_exs
 )
-
-
