@@ -11,12 +11,12 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 import dlib
 
 batch_size = 128
-epochs = 12
+epochs = 70
 
 DATA_DIR = Path(__file__).parent.parent / "03_Processed"
 TEST_DIR = Path(__file__).parent.parent / "01_Data" / "test"
@@ -33,7 +33,7 @@ neg = np.concatenate((neg_X, np.zeros((neg_X.shape[0], 1))), axis=1)
 X = np.concatenate((pos, neg), axis=0)[:, :-1]
 y = np.concatenate((pos, neg), axis=0)[:, -1]
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state=42)
 
 # AUC function
 def auc(y_true, y_pred):
@@ -44,13 +44,16 @@ def auc(y_true, y_pred):
 # Baseline model
 model = Sequential()
 model.add(Dense(128, input_shape=(256,), activation="relu"))
+model.add(Dropout(0.2))
 model.add(Dense(64, input_shape=(256,), activation="relu"))
+model.add(Dropout(0.2))
 model.add(Dense(32, input_shape=(256,), activation="relu"))
+model.add(Dropout(0.2))
 model.add(Dense(1, activation="sigmoid"))
 
 model.compile(loss="binary_crossentropy", optimizer="adam", metrics=[auc])
 
-model.fit(
+history = model.fit(
     X_train,
     y_train,
     batch_size=batch_size,
@@ -59,6 +62,7 @@ model.fit(
     validation_data=(X_test, y_test),
 )
 
+# Plot learning rates
 
 ## Preprocessing images
 # Function to extract 128 vector for a given image
@@ -104,4 +108,4 @@ for ind, row in df_test.iterrows():
     preds.append(y)
 
 df_test.is_related = preds
-df_test.to_csv( str (DATA_DIR.parent / "04_Results" / "01_Submission.csv"), index = False)
+df_test.to_csv( str (DATA_DIR.parent / "04_Results" / "03_Submission.csv"), index = False)
