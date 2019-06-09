@@ -14,6 +14,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 import dlib
+import matplotlib.pyplot as plt
 
 batch_size = 128
 epochs = 70
@@ -45,9 +46,9 @@ def auc(y_true, y_pred):
 model = Sequential()
 model.add(Dense(128, input_shape=(256,), activation="relu"))
 model.add(Dropout(0.2))
-model.add(Dense(64, input_shape=(256,), activation="relu"))
+model.add(Dense(64, activation="relu"))
 model.add(Dropout(0.2))
-model.add(Dense(32, input_shape=(256,), activation="relu"))
+model.add(Dense(32, activation="relu"))
 model.add(Dropout(0.2))
 model.add(Dense(1, activation="sigmoid"))
 
@@ -63,7 +64,24 @@ history = model.fit(
 )
 
 # Plot learning rates
+auc = history.history['auc']
+val_auc = history.history['val_auc']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
 
+epochs = range(1, len(auc) + 1)
+plt.plot(epochs, auc, 'bo', label='Training auc')
+plt.plot(epochs, val_auc, 'b', label='Validation auc')
+plt.title('Training and validation accuracy')
+plt.legend()
+
+plt.figure()
+plt.plot(epochs, loss, 'bo', label='Training loss')
+plt.plot(epochs, val_loss, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.legend()
+
+plt.show()
 ## Preprocessing images
 # Function to extract 128 vector for a given image
 detector = dlib.get_frontal_face_detector()
