@@ -15,6 +15,8 @@ from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from pykliep import DensityRatioEstimator 
+
 
 batch_size = 2048
 epochs = 10
@@ -38,6 +40,11 @@ y = np.concatenate((pos, neg), axis=0)[:, -1]
 X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size = 0.05, random_state=42)
 
 X_test = np.load(DATA_DIR / "X_test.npy")
+
+# Find similar samples in the trainset using KL Divergence
+kliep = DensityRatioEstimator()
+kliep.fit(X_train, X_test) # keyword arguments are X_train and X_test
+
 
 # Normalize
 scaler = StandardScaler()
