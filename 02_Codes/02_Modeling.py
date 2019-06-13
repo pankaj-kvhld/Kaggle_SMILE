@@ -13,11 +13,11 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
-import dlib
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
-batch_size = 128
-epochs = 70
+batch_size = 2048
+epochs = 10
 
 DATA_DIR = Path(__file__).parent.parent / "03_Processed"
 TEST_DIR = Path(__file__).parent.parent / "01_Data" / "test"
@@ -34,7 +34,17 @@ neg = np.concatenate((neg_X, np.zeros((neg_X.shape[0], 1))), axis=1)
 X = np.concatenate((pos, neg), axis=0)[:, :-1]
 y = np.concatenate((pos, neg), axis=0)[:, -1]
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state=42)
+
+X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size = 0.05, random_state=42)
+
+X_test = np.load(DATA_DIR / "X_test.npy")
+
+# Normalize
+scaler = StandardScaler()
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
+X_valid = scaler.transform(X_valid)
+X_test = scaler.transform(X_test)
 
 # AUC function
 def auc(y_true, y_pred):
@@ -42,25 +52,25 @@ def auc(y_true, y_pred):
     K.get_session().run(tf.local_variables_initializer())
     return auc
 
-# Baseline model
+
 model = Sequential()
 model.add(Dense(128, input_shape=(256,), activation="relu"))
 model.add(Dropout(0.2))
-model.add(Dense(64, activation="relu"))
+model.add(Dense(64, input_shape=(256,), activation="relu"))
 model.add(Dropout(0.2))
-model.add(Dense(32, activation="relu"))
+model.add(Dense(32, input_shape=(256,), activation="relu"))
 model.add(Dropout(0.2))
 model.add(Dense(1, activation="sigmoid"))
 
 model.compile(loss="binary_crossentropy", optimizer="adam", metrics=[auc])
 
 history = model.fit(
-    X_train,
-    y_train,
+    X,
+    y,
     batch_size=batch_size,
     epochs=epochs,
     verbose=1,
-    validation_data=(X_test, y_test),
+    validation_data=(X_valid, y_valid),
 )
 
 # Plot learning rates
@@ -74,56 +84,17 @@ plt.plot(epochs, auc, 'bo', label='Training auc')
 plt.plot(epochs, val_auc, 'b', label='Validation auc')
 plt.title('Training and validation accuracy')
 plt.legend()
+plt.show()
 
 plt.figure()
 plt.plot(epochs, loss, 'bo', label='Training loss')
 plt.plot(epochs, val_loss, 'b', label='Validation loss')
 plt.title('Training and validation loss')
 plt.legend()
-
 plt.show()
-## Preprocessing images
-# Function to extract 128 vector for a given image
-detector = dlib.get_frontal_face_detector()
-sp = dlib.shape_predictor(str(PREDICTOR))
-facerec = dlib.face_recognition_model_v1(str(FACE_REC_MODEL))
-
-def img_2_128vec(img):
-    """ Takes an image and retuns the 128 dimension vector
-    """
-    dets = detector(img, 1)
-    if len(dets) == 1:
-        shape = sp(img, dets[0])
-        face_descriptor = facerec.compute_face_descriptor(img, shape)
-        return face_descriptor
-    else:
-        #print("None or more than one faces in the image")
-        return -1
 
 # Score the model with test data
 # Load test data
 df_test = pd.read_csv(DATA_DIR.parent / "01_Data" / "sample_submission.csv")
-preds = []
-for ind, row in df_test.iterrows():
-    if ind % 100 == 0:
-        print(ind)
-    
-    img_1 = row.img_pair.split("-")[0]
-    img_2 = row.img_pair.split("-")[1]
-    
-    img_1 = dlib.load_rgb_image(str(TEST_DIR / img_1))
-    img_1_128_vec = img_2_128vec(img_1)
-    
-    img_2 = dlib.load_rgb_image(str(TEST_DIR / img_2))
-    img_2_128_vec = img_2_128vec(img_2)
-    
-    if (img_1_128_vec == -1) or (img_2_128_vec == -1):
-        pred = 0
-    else:
-        x = np.concatenate((img_1_128_vec, img_2_128_vec))    
-        y = model.predict(x.reshape(-1, 256))[0][0]
-    
-    preds.append(y)
-
-df_test.is_related = preds
-df_test.to_csv( str (DATA_DIR.parent / "04_Results" / "03_Submission.csv"), index = False)
+df_test.is_related = model.predict(X_test)
+df_test.to_csv( str (DATA_DIR.parent / "04_Results" / "10_Norm_Submission.csv"), index = False)
